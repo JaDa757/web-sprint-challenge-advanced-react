@@ -9,6 +9,7 @@ export default class AppClass extends React.Component {
       email: '',
       index: 4,
       steps: 0,
+      validationErrors: [],
     };
   }
 
@@ -78,36 +79,55 @@ export default class AppClass extends React.Component {
   onChange = (evt) => {
     this.setState({ email: evt.target.value });
   }
+  
+  
+   isValidEmail(email) {
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailPattern.test(email);
+  }
 
   onSubmit = async (evt) => {
     evt.preventDefault();
-    // Implement logic to send a POST request to the server with this.state.email
+
+    // Validate email before sending the request
+    const { email } = this.state;
+    if (!this.isValidEmail(email)) {
+      // Handle invalid email on the client side
+      this.setState({
+        validationErrors: ['Invalid email format. Please enter a valid email address.'],
+      });
+      return;
+    }
+  
     try {
-      // Send the request and handle the response
       const response = await fetch('http://localhost:9000/api/result', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email: this.state.email }),
-      });
-
+        },  
+        body: JSON.stringify({ x, y, steps, email }),
+      });  
+  
       if (response.ok) {
-        
         const data = await response.json();
-        
         this.setState({ message: data.message });
-        
-        this.setState({ email: '' });
+        // Clear the form fields
+        this.setState({ x: '', y: '', steps: '', email: '' });
+      } else if (response.status === 422) {
+        const errorData = await response.json();
+        // Handle validation errors
+        // Update the state to store error messages and display them to the user
+        this.setState({ validationErrors: errorData.errors });
       } else {
-        // Handle errors
-        // You can update the message state to display an error message
-      }
+        // Handle other types of errors
+        console.error('Error:', response.statusText);
+      }  
     } catch (error) {
       console.error('Error:', error);
       // Handle network or other errors
-    }
-  }
+    }  
+  }  
+  
 
 
   render() {
