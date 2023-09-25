@@ -1,49 +1,44 @@
-import React, { useState, useEffect } from 'react'
+import React, { Component } from 'react';
 
-// Suggested initial states
-export default class AppClass extends React.Component {
+const initialMessage = '';
+const initialEmail = '';
+const initialSteps = 0;
+const initialIndex = 4;
+
+class AppClass extends Component {
   constructor(props) {
     super(props);
     this.state = {
-      message: '',
-      email: '',
-      index: 4,
-      steps: 0,
+      message: initialMessage,
+      email: initialEmail,
+      index: initialIndex,
+      currentX: 2,
+      currentY: 2,
+      steps: initialSteps,
       validationErrors: [],
     };
   }
 
-
-  getXY = () => {
-    // It it not necessary to have a state to track the coordinates.
-    // It's enough to know what index the "B" is at, to be able to calculate them.
-  }
-
-  getXYMessage = () => {
-    // It it not necessary to have a state to track the "Coordinates (2, 2)" message for the user.
-    // You can use the `getXY` helper above to obtain the coordinates, and then `getXYMessage`
-    // returns the fully constructed string.
-  }
-
   reset = () => {
     this.setState({
-      message: '',
-      email: '',
-      index: 4,
-      steps: 0,
+      message: initialMessage,
+      email: initialEmail,
+      index: initialIndex,
+      currentX: 2,
+      currentY: 2,
+      steps: initialSteps,
+      validationErrors: [],
     });
-  };
+  }
 
   getNextIndex = (direction) => {
-    // Define the dimensions of your grid
     const numRows = 3;
     const numCols = 3;
+    const { currentX, currentY } = this.state;
 
-    // Calculate the current row and column of "B" based on the current index
-    const currentRow = Math.floor(this.state.index / numCols);
-    const currentCol = this.state.index % numCols;
+    const currentRow = currentY - 1;
+    const currentCol = currentX - 1;
 
-    // Define a mapping of directions to their corresponding row and column changes
     const directionMap = {
       left: { rowChange: 0, colChange: -1 },
       up: { rowChange: -1, colChange: 0 },
@@ -51,130 +46,136 @@ export default class AppClass extends React.Component {
       down: { rowChange: 1, colChange: 0 },
     };
 
-    // Get the row and column changes for the given direction
     const { rowChange, colChange } = directionMap[direction];
 
-    // Calculate the new row and column based on the direction
     const nextRow = currentRow + rowChange;
     const nextCol = currentCol + colChange;
 
-    // Calculate the new index
-    const nextIndex = nextRow * numCols + nextCol;
+    const limitedNextRow = Math.max(0, Math.min(numRows - 1, nextRow));
+    const limitedNextCol = Math.max(0, Math.min(numCols - 1, nextCol));
 
-    // Ensure the new index is within the grid boundaries
-    return Math.max(0, Math.min(numRows * numCols - 1, nextIndex));
-  };
+    const nextIndex = limitedNextRow * numCols + limitedNextCol;
+
+    return nextIndex;
+  }
 
   move = (direction) => {
     const nextIndex = this.getNextIndex(direction);
-    if (nextIndex !== this.state.index) {
-      this.setState((prevState) => ({
-        index: nextIndex,
-        steps: prevState.steps + 1,
-        message: `Moved ${direction}`,
-      }))
+
+    let newCurrentX = this.state.currentX;
+    let newCurrentY = this.state.currentY;
+    let errorMessage = '';
+
+    if (
+      (direction === 'left' && newCurrentX > 1) ||
+      (direction === 'right' && newCurrentX < 3) ||
+      (direction === 'up' && newCurrentY > 1) ||
+      (direction === 'down' && newCurrentY < 3)
+    ) {
+      if (nextIndex !== this.state.index) {
+        newCurrentX += direction === 'left' ? -1 : direction === 'right' ? 1 : 0;
+        newCurrentY += direction === 'up' ? -1 : direction === 'down' ? 1 : 0;
+
+        this.setState((prevState) => ({
+          ...prevState,
+          index: nextIndex,
+          steps: prevState.steps + 1,
+          message: '',
+          currentX: newCurrentX,
+          currentY: newCurrentY,
+        }));
+      }
+    } else {
+      errorMessage = `You can't go ${direction}`;
+      this.setState({ message: errorMessage });
     }
   }
 
   onChange = (evt) => {
     this.setState({ email: evt.target.value });
   }
-  
-  
-   isValidEmail(email) {
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailPattern.test(email);
-  }
 
   onSubmit = async (evt) => {
     evt.preventDefault();
 
-    // Validate email before sending the request
-    const { email } = this.state;
-    if (!this.isValidEmail(email)) {
-      // Handle invalid email on the client side
-      this.setState({
-        validationErrors: ['Invalid email format. Please enter a valid email address.'],
-      });
+    const { email, currentX, currentY, steps } = this.state;
+
+    if (!email) {
+      this.setState({ message: 'Ouch: email is required.' });
       return;
     }
-  
+
     try {
       const response = await fetch('http://localhost:9000/api/result', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-        },  
-        body: JSON.stringify({ x, y, steps, email }),
-      });  
-  
+        },
+        body: JSON.stringify({ email, x: currentX, y: currentY, steps }),
+      });
+
       if (response.ok) {
         const data = await response.json();
-        this.setState({ message: data.message });
-        // Clear the form fields
-        this.setState({ x: '', y: '', steps: '', email: '' });
-      } else if (response.status === 422) {
-        const errorData = await response.json();
-        // Handle validation errors
-        // Update the state to store error messages and display them to the user
-        this.setState({ validationErrors: errorData.errors });
+        this.setState({
+          message: data.message,
+          email: '',
+        });
       } else {
-        // Handle other types of errors
-        console.error('Error:', response.statusText);
-      }  
+        const errorData = await response.json();
+        this.setState({ message: `${errorData.message}` });
+      }
     } catch (error) {
       console.error('Error:', error);
-      // Handle network or other errors
-    }  
-  }  
-  
-
+    }
+  }
 
   render() {
-    const { className } = this.props
     return (
-      <div id="wrapper" className={className}>
+      <div id="wrapper" className={this.props.className}>
         <div className="info">
-          <h3 id="coordinates">Coordinates (2, 2)</h3>
-          <h3 id="steps">You moved 0 times</h3>
+          <h3 id="coordinates">Coordinates ({this.state.currentX}, {this.state.currentY})</h3>
+          <h3 id="steps">You moved {this.state.steps} {this.state.steps === 1 ? 'time' : 'times'}</h3>
         </div>
         <div id="grid">
-          {
-            [0, 1, 2, 3, 4, 5, 6, 7, 8].map(idx => (
-              <div key={idx} className={`square${idx === 4 ? ' active' : ''}`}>
-                {idx === 4 ? 'B' : null}
-              </div>
-            ))
-          }
+          {Array.from({ length: 9 }).map((_, idx) => (
+            <div key={idx} className={`square${idx === this.state.index ? ' active' : ''}`}>
+              {idx === this.state.index ? 'B' : null}
+            </div>
+          ))}
         </div>
         <div className="info">
-          <h3 id="message"></h3>
+          <h3 id="message">{this.state.message}</h3>
         </div>
         <div id="keypad">
-          <button id="left" onClick={() => this.move('left')}>LEFT</button>
-          <button id="up" onClick={() => this.move('up')}>UP</button>
-          <button id="right" onClick={() => this.move('right')}>RIGHT</button>
-          <button id="down" onClick={() => this.move('down')}>DOWN</button>
-          <button id="reset" onClick={this.reset}>reset</button>
+          <button id="left" onClick={() => this.move('left')}>
+            LEFT
+          </button>
+          <button id="up" onClick={() => this.move('up')}>
+            UP
+          </button>
+          <button id="right" onClick={() => this.move('right')}>
+            RIGHT
+          </button>
+          <button id="down" onClick={() => this.move('down')}>
+            DOWN
+          </button>
+          <button id="reset" onClick={this.reset}>
+            reset
+          </button>
         </div>
         <form onSubmit={this.onSubmit}>
           <input
             id="email"
             type="email"
-            placeholder="type email"
+            placeholder="Type email"
             value={this.state.email}
             onChange={this.onChange}
-          >
-          </input>
-
-          <input
-            id="submit"
-            type="submit"
-            value='Submit'
           />
+          <input id="submit" type="submit" value="Submit" />
         </form>
       </div>
-    )
+    );
   }
 }
 
+export default AppClass;
